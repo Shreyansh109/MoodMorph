@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Color Journey</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <div id="game-container">
+    <div id="ui">
+      <h1>🌈 Color Journey</h1>
+      <button onclick="initializeGame('happy')">Start Happy Journey</button>
+      <button onclick="initializeGame('sad')">Start Sad Journey</button>
+      <div id="progress">Progress: 0%</div>
+    </div>
+  </div>
+  <canvas id="game-canvas"></canvas>
+  <script src="index.js"></script>
+  <script>
+  let currentGame = null;
+  function initializeGame(sentiment) {
+    if (currentGame) currentGame.stop(); // stop old game
+    const canvas = document.getElementById("game-canvas");
+    currentGame = new ColorJourneyGame(canvas, sentiment);
+    currentGame.start();
+  }
+</script>
+</body>
+</html>
