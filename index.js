@@ -4,6 +4,19 @@ class ColorJourneyGame {
     this.ctx = canvas.getContext("2d");
     this.sentiment = sentiment;
 
+    // Inside constructor
+    if (this.sentiment === "sad") {
+      this.sadMusic = new Audio("sad.mp3");   // replace with your path
+      this.happyMusic = new Audio("happy.mp3"); // replace with your path
+      this.sadMusic.loop = true;
+      this.happyMusic.loop = true;
+      this.sadMusic.volume = 1;
+      this.happyMusic.volume = 0;
+      this.sadMusic.play();
+      this.happyMusic.play();
+    }
+
+
     // State
     this.running = false;
     this.lastTime = null;
@@ -24,7 +37,7 @@ class ColorJourneyGame {
     this.clouds = [];
     this.orbs = [];
     this.collected = 0;
-    this.targetCollected = 20;
+    this.targetCollected = 30;
     this.spawnTimer = 0;
     this.nextSpawnAt = this.randomSpawnInterval();
 
@@ -67,6 +80,11 @@ class ColorJourneyGame {
       this.bgTopColor = this.lerpColor("#4a4a4a", "#87CEEB", progressRatio);
       this.bgBottomColor = this.lerpColor("#2b2b2b", "#00BFFF", progressRatio);
       this.cloudSpeedMultiplier = 0.3 + 0.7 * progressRatio;
+      // Gradually blend music
+      if(this.sadMusic && this.happyMusic){
+        this.sadMusic.volume = 1 - progressRatio;
+        this.happyMusic.volume = progressRatio;
+      }
     } else {
       this.bgTopColor = "#87CEEB";
       this.bgBottomColor = "#00BFFF";
@@ -90,6 +108,10 @@ class ColorJourneyGame {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("resize", this.onResize);
+
+    // Stop music
+    if(this.sadMusic) this.sadMusic.pause();
+    if(this.happyMusic) this.happyMusic.pause();
   }
 
   onKeyDown(e){ this.keys[e.key]=true; }
