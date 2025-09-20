@@ -1,22 +1,43 @@
-/* Layout */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; width: 100%; font-family: Arial, sans-serif; }
+html, body { height: 100%; width: 100%; font-family: Arial, sans-serif; overflow: hidden; }
 
 .container {
   display: flex;
   height: 100vh;
   width: 100vw;
+  transition: all 0.8s ease;
 }
 
-/* Chatbot */
-.chat-section {
+/* Fullscreen Chat (initial) */
+.container.full-chat .chat-section {
+  width: 100%;
+}
+.container.full-chat .game-section {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Split View (after Play button) */
+.container.split-view .chat-section {
   width: 30%;
   min-width: 260px;
+}
+.container.split-view .game-section {
+  width: 70%;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Chat */
+.chat-section {
   background: #1e1e2f;
   color: #fff;
   display: flex;
   flex-direction: column;
   padding: 16px;
+  transition: all 0.8s ease;
+  overflow: hidden;
 }
 
 .chat-section h2 {
@@ -72,11 +93,14 @@ html, body { height: 100%; width: 100%; font-family: Arial, sans-serif; }
 
 /* Game */
 .game-section {
-  flex: 1;
   background: #000;
+  transition: all 0.8s ease;
   display: flex;
+  justify-content: center;
+  align-items: center;
 }
 #game-canvas {
-  flex: 1;
+  width: 100%;
+  height: 100%;
   display: block;
 }
