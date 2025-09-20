@@ -126,6 +126,11 @@ class Game {
     this.particles = [];
     this.trail = [];
 
+    // spawn cloud
+    this.clouds = [];
+    this.cloudSpawnTimer = 0;
+    this.cloudSpawnInterval = 3.0;
+
     // timers
     this.spawnTimer = 0;
     this.spawnInterval = 1.6;
@@ -252,6 +257,8 @@ class Game {
     this.player.pulsePhase = 0;
     this.player.glowIntensity = 1;
     this.player.jumpTimer = 0;
+    this.clouds.length = 0;
+    this.cloudSpawnTimer = 0;
   }
 
   // ---------- gameplay helpers ----------
@@ -289,7 +296,16 @@ class Game {
     const groundY = this.h - 80;
     if (Math.random() < 0.6) {
       const w = 36, x = Math.random() * (this.w - 200) + 200;
-      this.obstacles.push({ kind: "spike", x, y: groundY - 16, w, h: 32 });
+      this.obstacles.push({ 
+        kind: "spike", 
+        x, 
+        y: groundY - 16, 
+        w, 
+        h: 32,
+        // ADD THESE PROPERTIES:
+        lifeTimer: 0,
+        maxLife: 4 + Math.random() * 3 // spike lives for 4-7 seconds
+      });
     } else {
       const w = 70, h = 28;
       const direction = Math.random() < 0.5 ? -1 : 1;
@@ -297,6 +313,33 @@ class Game {
       const speed = 90 + Math.random() * 140;
       this.obstacles.push({ kind: "block", x, y: groundY - h, w, h, vx: speed * direction });
     }
+  }
+
+  spawnCloud() {
+    const cloudSize = 40 + Math.random() * 60;
+    const cloud = {
+      x: this.w + cloudSize, // start from right side
+      y: 50 + Math.random() * (this.h * 0.4), // upper portion of screen
+      size: cloudSize,
+      speed: 15 + Math.random() * 25,
+      opacity: 0.3 + Math.random() * 0.4,
+      type: Math.random() < 0.7 ? "normal" : "large",
+      bumps: 3 + Math.floor(Math.random() * 4), // 3-6 bumps per cloud
+      bumpSizes: [],
+      bumpOffsets: [],
+      segments: 4 + Math.floor(Math.random() * 3), // 4-6 segments
+      segmentData: []
+    };
+    // Generate random bump sizes and positions for each cloud
+    for (let i = 0; i < cloud.bumps; i++) {
+      cloud.bumpSizes.push(0.5 + Math.random() * 0.8); // random size multiplier
+      cloud.bumpOffsets.push({
+        x: (Math.random() - 0.5) * 1.5, // random X offset
+        y: (Math.random() - 0.5) * 1.2,  // random Y offset
+        radius: cloudSize * (0.3 + Math.random() * 0.4)
+      });
+    }
+    this.clouds.push(cloud);
   }
 
   collectOrb(orb) {
@@ -435,6 +478,21 @@ class Game {
       }
     }
 
+    // Cloud spawning and movement
+    this.cloudSpawnTimer += dt;
+    if (this.cloudSpawnTimer >= this.cloudSpawnInterval) {
+      this.cloudSpawnTimer = 0;
+      this.cloudSpawnInterval = 2 + Math.random() * 4; // vary spawn rate
+      this.spawnCloud();
+    }
+
+    // Update clouds
+    for (let cloud of this.clouds) {
+      cloud.x -= cloud.speed * dt;
+    }
+    // Remove off-screen clouds
+    this.clouds = this.clouds.filter(cloud => cloud.x + cloud.size > -50);
+
     // movement left/right
     if (this.keys["ArrowLeft"] || this.keys["a"]) this.player.x -= this.playerSpeed * dt;
     if (this.keys["ArrowRight"] || this.keys["d"]) this.player.x += this.playerSpeed * dt;
@@ -482,7 +540,12 @@ class Game {
 
     // update obstacles and collisions
     for (let ob of this.obstacles) {
-      if (ob.kind === "block") ob.x += ob.vx * dt;
+      if (ob.kind === "block") {
+        ob.x += ob.vx * dt;
+      } else if (ob.kind === "spike") {
+        // ADD TIMER UPDATE FOR SPIKES:
+        ob.lifeTimer += dt;
+      }
 
       // circle vs AABB collision
       const cx = this.player.x, cy = this.player.y;
@@ -491,12 +554,24 @@ class Game {
       const ddx = cx - closestX, ddy = cy - closestY;
       if (ddx * ddx + ddy * ddy < (this.player.r * this.player.r)) {
         this.shake = 10;
-        this.emitParticles(this.player.x, this.player.y, "#f28b8ba5", 18);
+        this.emitParticles(this.player.x, this.player.y, "#ff5555", 18);
         this.gameOver();
       }
     }
-    // remove offscreen moving blocks
-    this.obstacles = this.obstacles.filter(ob => !(ob.kind === "block" && (ob.x + ob.w < -120 || ob.x > this.w + 120)));
+
+    // REPLACE THE OBSTACLE FILTERING:
+    this.obstacles = this.obstacles.filter(ob => {
+      // Remove offscreen moving blocks
+      if (ob.kind === "block" && (ob.x + ob.w < -120 || ob.x > this.w + 120)) {
+        return false;
+      }
+      // Remove expired spikes
+      if (ob.kind === "spike" && ob.lifeTimer > ob.maxLife) {
+        return false;
+      }
+      return true;
+    });
+
     if (this.obstacles.length > 14) this.obstacles.shift();
 
     // update particles
@@ -552,6 +627,10 @@ class Game {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
 
+    for (let cloud of this.clouds) {
+      this.drawCloud(cloud);
+    }
+
     // subtle decorative clouds / stars
     if (this.sentiment === "sad") {
       ctx.globalAlpha = 0.06;
@@ -575,7 +654,15 @@ class Game {
     // obstacles
     for (let ob of this.obstacles) {
       if (ob.kind === "spike") {
-        ctx.fillStyle = "#b22222";
+        // ADD FADING EFFECT:
+        let alpha = 1;
+        if (ob.maxLife && ob.lifeTimer > ob.maxLife * 0.7) {
+          // Start fading when 70% of life is used
+          const fadeProgress = (ob.lifeTimer - ob.maxLife * 0.7) / (ob.maxLife * 0.3);
+          alpha = 1 - fadeProgress;
+        }
+        
+        ctx.fillStyle = `rgba(178, 34, 34, ${alpha})`; // Red with transparency
         ctx.beginPath();
         ctx.moveTo(ob.x, ob.y + ob.h);
         ctx.lineTo(ob.x + ob.w * 0.5, ob.y);
@@ -752,6 +839,55 @@ class Game {
     const g = Math.round(A[1] + (B[1] - A[1]) * t);
     const bl = Math.round(A[2] + (B[2] - A[2]) * t);
     return `rgb(${r},${g},${bl})`;
+  }
+
+  drawCloud(cloud) {
+    const ctx = this.ctx;
+    
+    // Set cloud color based on sentiment
+    let cloudColor, cloudShadow;
+    if (this.sentiment === "sad") {
+      // Dark, stormy clouds
+      cloudColor = `rgba(60, 65, 75, ${cloud.opacity})`;
+      cloudShadow = `rgba(40, 42, 48, ${cloud.opacity * 0.8})`;
+    } else {
+      // Light, fluffy clouds
+      cloudColor = `rgba(255, 255, 255, ${cloud.opacity})`;
+      cloudShadow = `rgba(200, 220, 240, ${cloud.opacity * 0.6})`;
+    }
+
+    const size = cloud.size;
+    const x = cloud.x;
+    const y = cloud.y;
+
+    // Draw cloud shadow first (slightly offset)
+    ctx.fillStyle = cloudShadow;
+    this.drawCloudShape(x + 3, y + 3, size * 0.95, cloud);
+
+    // Draw main cloud
+    ctx.fillStyle = cloudColor;
+    this.drawCloudShape(x, y, size, cloud);
+  }
+
+  drawCloudShape(x, y, size, cloud) {
+  const ctx = this.ctx;
+    // Create a path that combines all cloud segments
+    ctx.beginPath();
+    // Draw overlapping circles to create fluffy cloud appearance
+    for (let segment of cloud.segmentData) {
+      ctx.arc(
+        x + segment.x, 
+        y + segment.y, 
+        segment.radius, 
+        0, 
+        Math.PI * 2
+      );
+    }
+    
+    // Add a large central circle for cloud body
+    ctx.arc(x, y, size * 0.4, 0, Math.PI * 2);
+    
+    ctx.fill();
   }
 
   // optional cleanup (not required, but handy)
