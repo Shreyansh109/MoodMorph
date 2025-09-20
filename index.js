@@ -82,7 +82,12 @@ class Game {
       vy: 0,
       onGround: true,
       doubleJumped: false,
-      gradientOffset: 0
+      gradientOffset: 0,
+      animationTime: 0,
+      pulsePhase: 0,
+      colorShiftSpeed: 1.5,
+      glowIntensity: 1,
+      jumpTimer: 0
     };
 
     // safe audio loader (no crash if files missing or unsupported)
@@ -95,11 +100,12 @@ class Game {
         return null;
       }
     };
+    var soundVar=this.sentiment === "sad" ? "sad.mp3" : "happy.mp3";//deciding which music will play
     this.sfx = {
       collect: safeAudio("collect.mp3"),
       jump: safeAudio("jump.mp3"),
       gameover: safeAudio("gameover.mp3"),
-      bg: safeAudio("bg_loop.mp3")
+      bg: safeAudio(soundVar)
     };
     if (this.sfx.bg) this.sfx.bg.loop = true;
 
@@ -174,11 +180,11 @@ class Game {
 
   // ---------- input ----------
   _onKeyDown(e) {
-    // prevent repeated jumps while holding
-    if ((e.key === " " || e.code === "Space" || e.key === "Spacebar") && !this.spaceHeld) {
-      this.jump();
-      this.spaceHeld = true;
-    }
+    // // prevent repeated jumps while holding
+    // if ((e.key === " " || e.code === "Space" || e.key === "Spacebar") && !this.spaceHeld) {
+    //   this.jump();
+    //   this.spaceHeld = true;
+    // }
 
     // P pause toggle
     if (e.key === "p" || e.key === "P") {
@@ -195,7 +201,7 @@ class Game {
   }
 
   _onKeyUp(e) {
-    if (e.key === " " || e.code === "Space" || e.key === "Spacebar") this.spaceHeld = false;
+    // if (e.key === " " || e.code === "Space" || e.key === "Spacebar") this.spaceHeld = false;
     this.keys[e.key] = false;
   }
 
@@ -242,6 +248,10 @@ class Game {
     this.shake = 0;
     this.spawnInterval = 1.6;
     this.obSpawnInterval = 4;
+    this.player.animationTime = 0;
+    this.player.pulsePhase = 0;
+    this.player.glowIntensity = 1;
+    this.player.jumpTimer = 0;
   }
 
   // ---------- gameplay helpers ----------
@@ -251,10 +261,12 @@ class Game {
       this.player.vy = this.jumpVel;
       this.player.onGround = false;
       this.player.doubleJumped = false;
+      this.player.glowIntensity = 1.5;
       if (this.sfx.jump) try { this.sfx.jump.play(); } catch (e) {}
     } else if (!this.player.doubleJumped) {
       this.player.vy = this.jumpVel * 0.85;
       this.player.doubleJumped = true;
+      this.player.glowIntensity = 2.0;
       if (this.sfx.jump) try { this.sfx.jump.play(); } catch (e) {}
     }
   }
@@ -298,6 +310,9 @@ class Game {
       this.score += 3; this.collected += 2;
     }
 
+    this.player.glowIntensity = 2.5;
+    this.player.colorShiftSpeed = 3.0;
+
     this.emitParticles(orb.x, orb.y, orb.color, 18);
     if (this.sfx.collect) try { this.sfx.collect.play(); } catch (e) {}
 
@@ -310,8 +325,75 @@ class Game {
     this.target = Math.max(10, 12 + Math.floor(this.level * 1.5));
     this.spawnInterval = Math.max(0.9, this.spawnInterval - 0.1);
     this.obSpawnInterval = Math.max(2.0, this.obSpawnInterval - 0.15);
+
+    this.player.glowIntensity = 3.0;
+    this.player.colorShiftSpeed = 4.0;
+
     this.emitParticles(this.player.x, this.player.y - 40, "#fff", 28);
   }
+
+  getPlayerGradientColors() {
+  const time = this.player.animationTime;
+  const pulse = this.player.pulsePhase;
+  const levelProgress = Math.min(1, (this.level - 1) * 0.12 + (this.collected / Math.max(1, this.target)) * 0.4);
+  
+  let primaryColors, secondaryColors;
+  
+  if (this.sentiment === "sad") {
+    // Sad mode: cool blues to warm pinks/purples
+    primaryColors = [
+      "#00f0ff", // cyan
+      "#0080ff", // blue
+      "#8000ff", // purple  
+      "#ff00ff", // magenta
+      "#ff69b4"  // pink
+    ];
+    secondaryColors = [
+      "#004080", // dark blue
+      "#200040", // dark purple
+      "#400020", // dark magenta
+      "#800040", // dark pink
+      "#004060"  // dark cyan
+    ];
+  } else {
+  // Happy mode: vibrant gradient colors
+  primaryColors = [
+    "#FFB852", // warm orange (top-left gradient)
+    "#C165D0", // purple (top-second gradient)  
+    "#2AFE67", // bright green (top-third gradient)
+    "#5681F1", // blue (top-right gradient)
+    "#FFE324"  // yellow (bottom-right gradient)
+  ];
+  secondaryColors = [
+    "#FF7B02", // deeper orange
+    "#5C2FEE", // deeper purple
+    "#08C792", // deeper green
+    "#1153FC", // deeper blue
+    "#FFB539"  // deeper yellow
+  ];
+  }
+
+  // Animated color selection
+  const colorIndex = (time * this.player.colorShiftSpeed + levelProgress * 2) % primaryColors.length;
+  const currentIndex = Math.floor(colorIndex);
+  const nextIndex = (currentIndex + 1) % primaryColors.length;
+  const blend = colorIndex - currentIndex;
+
+  // Interpolate between current and next color
+  const primaryColor = this.lerpColor(primaryColors[currentIndex], primaryColors[nextIndex], blend);
+  const secondaryColor = this.lerpColor(secondaryColors[currentIndex], secondaryColors[nextIndex], blend);
+
+  // Add pulsing effect
+  const pulseIntensity = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(pulse * 4));
+  const glowColor = this.lerpColor(primaryColor, "#f2b142ff", pulseIntensity * 0.4);
+
+  return {
+    inner: "#facd80a3",
+    mid: glowColor,
+    outer: secondaryColor,
+    glow: primaryColor
+  };
+}
 
   emitParticles(x, y, color, count = 10) {
     for (let i = 0; i < count; i++) {
@@ -338,6 +420,21 @@ class Game {
   }
 
   update(dt) {
+
+    this.player.animationTime += dt;
+    this.player.pulsePhase += dt;
+    this.player.glowIntensity = Math.max(1.0, this.player.glowIntensity - dt * 2);
+    this.player.colorShiftSpeed = Math.max(1.5, this.player.colorShiftSpeed - dt * 1.5);
+
+    // Add continuous jumping logic:
+    this.player.jumpTimer += dt;
+    if (this.keys[" "] || this.keys["Space"] || this.keys["Spacebar"]) {
+      if (this.player.jumpTimer > 0.15) { // Jump every 150ms when holding space
+        this.jump();
+        this.player.jumpTimer = 0;
+      }
+    }
+
     // movement left/right
     if (this.keys["ArrowLeft"] || this.keys["a"]) this.player.x -= this.playerSpeed * dt;
     if (this.keys["ArrowRight"] || this.keys["d"]) this.player.x += this.playerSpeed * dt;
@@ -394,7 +491,7 @@ class Game {
       const ddx = cx - closestX, ddy = cy - closestY;
       if (ddx * ddx + ddy * ddy < (this.player.r * this.player.r)) {
         this.shake = 10;
-        this.emitParticles(this.player.x, this.player.y, "#ff5555", 18);
+        this.emitParticles(this.player.x, this.player.y, "#f28b8ba5", 18);
         this.gameOver();
       }
     }
@@ -524,19 +621,46 @@ class Game {
       ctx.globalAlpha = 1;
     }
 
-    // player with radial gradient glow (color shifts with level/progress)
     const pr = this.player.r;
-    const pProg = Math.min(1, (this.level - 1) * 0.12 + (this.collected / Math.max(1, this.target)) * 0.4);
-    const startColor = this.sentiment === "sad" ? this.lerpColor("#00f0ff", "#ff69b4", pProg) : this.lerpColor("#00ff7f", "#ffd700", pProg);
-    const playerGrad = ctx.createRadialGradient(this.player.x - pr * 0.2, this.player.y - pr * 0.2, pr * 0.12,
-      this.player.x, this.player.y, pr);
-    playerGrad.addColorStop(0, "#ffffff");
-    playerGrad.addColorStop(0.4, startColor);
-    playerGrad.addColorStop(1, this.lerpColor(startColor, "#000000", 0.85));
+    const colors = this.getPlayerGradientColors();
+    const glowRadius = pr * this.player.glowIntensity;
+
+    const outerGlow = ctx.createRadialGradient(this.player.x, this.player.y, pr * 0.5, 
+                                         this.player.x, this.player.y, glowRadius * 1.8);
+    outerGlow.addColorStop(0, colors.glow.replace('rgb(', 'rgba(').replace(')', ',0.4)'));
+    outerGlow.addColorStop(0.6, colors.glow.replace('rgb(', 'rgba(').replace(')', ',0.2)'));
+    outerGlow.addColorStop(1, 'rgba(255,255,255,0)');
+
+    ctx.globalAlpha = Math.min(1, this.player.glowIntensity * 0.8);
+    ctx.fillStyle = outerGlow;
+    ctx.beginPath();
+    ctx.arc(this.player.x, this.player.y, glowRadius * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Main player ball with animated gradient
+    const playerGrad = ctx.createRadialGradient(
+      this.player.x, this.player.y, pr * 0.1,
+      this.player.x, this.player.y, pr
+    );
+    playerGrad.addColorStop(0, colors.inner);
+    playerGrad.addColorStop(0.3, colors.mid);
+    playerGrad.addColorStop(0.7, colors.glow);
+    playerGrad.addColorStop(1, colors.outer);
+
     ctx.fillStyle = playerGrad;
     ctx.beginPath();
     ctx.arc(this.player.x, this.player.y, pr, 0, Math.PI * 2);
     ctx.fill();
+
+    // Inner highlight (centered and no pulse)
+    const highlightSize = pr * 0.3;
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = colors.inner;
+    ctx.beginPath();
+    ctx.arc(this.player.x, this.player.y, highlightSize, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
     // particles
     for (let p of this.particles) {
