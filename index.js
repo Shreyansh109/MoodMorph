@@ -102,9 +102,9 @@ class Game {
     };
     var soundVar=this.sentiment === "sad" ? "sad.mp3" : "happy.mp3";//deciding which music will play
     this.sfx = {
-      collect: safeAudio("collect.mp3"),
-      jump: safeAudio("jump.mp3"),
-      gameover: safeAudio("gameover.mp3"),
+      collect: safeAudio("Collect.mp3"),
+      jump: safeAudio("Jump.mp3"),
+      gameover: safeAudio("GameOver.mp3"),
       bg: safeAudio(soundVar)
     };
     if (this.sfx.bg) this.sfx.bg.loop = true;
